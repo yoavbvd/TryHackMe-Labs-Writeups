@@ -1,3 +1,8 @@
+#I recently concluded a targeted threat hunt investigating a multi-stage attack chain within a Windows development environment.
+#By correlating Sysmon Event ID 1 (Process Creation) and Event ID 13 (Registry Value Set) telemetry inside Splunk,
+#I traced the adversary's progression from an upstream package compromise to localized persistence.
+#Here is the complete technical breakdown of the multi-stage attack timeline, mapped directly against the MITRE ATT&CK framework along with the hunt queries:
+
 📦 STAGE 1: INITIAL ACCESS — Supply Chain Compromise (T1195.002)
 
 * Tactical Focus: The adversary compromised an upstream software component to bypass traditional perimeter defenses, counting on the implicit trust built into developer workflows.
