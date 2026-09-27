@@ -1,0 +1,45 @@
+📦 STAGE 1: INITIAL ACCESS — Supply Chain Compromise (T1195.002)
+
+* Tactical Focus: The adversary compromised an upstream software component to bypass traditional perimeter defenses, counting on the implicit trust built into developer workflows.
+* Log Telemetry (Sysmon EID 1): Captured at 2025-06-21 10:58:24.000 on endpoint paw-tom under the high-integrity context of PAW-TOM\itadmin-tom.
+* Technical Evidence & Artifacts: The internal build pipeline executed a legitimate runtime manager, node.exe (MD5: 0E35FC3B0EC975B76843501524C2F269), which pulled the malicious package dependency:
+"C:\Program Files\nodejs\node.exe" "C:\Program Files\nodejs/node_modules/npm/bin/npm-cli.js" install healthchk-lib@1.0.1
+* Splunk Hunt Query:
+
+index=main EventCode=1 Image="*\\node.exe" CommandLine="*install healthchk-lib*"
+| table _time, ComputerName, User, CommandLine, Hashes
+
+
+💻 STAGE 2: EXECUTION — Command and Scripting Interpreter (T1059.001 / T1059.003)
+
+* Tactical Focus: Exploiting a postinstall hook, the adversary generated a highly anomalous nested process tree to hide their execution environment.
+* Log Telemetry (Sysmon EID 1): Captured at 10:58:27.000. The node.exe process (Guid: {c5d2b969-9050-6856-e101-000000002a01}) directly spawned cmd.exe (PID: 1616), which immediately cascaded into a stealthy PowerShell instance.
+* Technical Evidence & Artifacts: The initial execution utilized a Unicode Base64-encoded command string:
+cmd.exe /d /s /c powershell.exe -NoP -W Hidden -EncodedCommand JABkAGUAcwB0...
+* Decoded Logic Analysis: De-obfuscation of the payload string revealed a multi-step script that declared a hidden path variable ($dest = "$env:APPDATA\SystemHealthUpdater.exe"), initiated a web pull using Invoke-WebRequest from a typosquatted domain (http://wlndows.thm), and spawned the downloaded binary.
+* Splunk Hunt Query:
+
+index=main EventCode=1 ParentImage="*\\node.exe" Image="*\\cmd.exe" CommandLine="*powershell.exe*EncodedCommand*"
+| table _time, ComputerName, ParentCommandLine, CommandLine
+
+
+🔑 STAGE 3: PERSISTENCE — Boot or Logon Autostart Execution: Registry Run Keys (T1547.001)
+
+* Tactical Focus: The secondary binary established an autostart hook within the target user's hive profile, ensuring persistent re-infection upon subsequent system interactive logons.
+* Log Telemetry (Sysmon EID 13): Captured at 10:58:29.000. The script-driven powershell.exe instance (PID: 5880) executed a SetValue transaction to write the autostart rule.
+* Technical Evidence & Artifacts: Rather than modifying global system keys, the transaction targeted a specific User SID profile hive:
+HKU\S-1-5-21-1966530601-3185510712-10604624-500\Software\Microsoft\Windows\CurrentVersion\Run\Windows Update Monitor
+* Registry Value Payload: The entry was populated with an additional Base64-encoded command string that runs SystemHealthUpdater.exe straight out of the user's %APPDATA% Roaming folder every time the user logs in.
+* Splunk Hunt Query:
+
+index=main EventCode=13 TargetObject="*\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\Windows Update Monitor"
+| table _time, ComputerName, Image, TargetObject, Details
+
+
+------------------------------
+🛡️ Engineering Detection & Blue Team Takeaways:
+
+   1. Process Lineage Baselines: Build robust detection logic that triggers alerts when package management or build tools (npm, node, dotnet, pip) act as the parent process to generic command interpreters (cmd.exe, powershell.exe).
+   2. User Hive Registry Baselines: Inspect SetValue actions targeting HKU:\*\Software\Microsoft\Windows\CurrentVersion\Run paths when initiated by script hosts, especially if the payload runs out of writeable paths like %APPDATA% or %PUBLIC%.
+   3. Pipeline Egress Restrictions: Implement zero-trust network boundaries on software build systems, restricting arbitrary runtime connections to external, unverified domains.
+
