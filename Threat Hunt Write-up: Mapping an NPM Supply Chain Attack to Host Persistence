@@ -48,3 +48,5 @@ index=main EventCode=13 TargetObject="*\\Software\\Microsoft\\Windows\\CurrentVe
    2. User Hive Registry Baselines: Inspect SetValue actions targeting HKU:\*\Software\Microsoft\Windows\CurrentVersion\Run paths when initiated by script hosts, especially if the payload runs out of writeable paths like %APPDATA% or %PUBLIC%.
    3. Pipeline Egress Restrictions: Implement zero-trust network boundaries on software build systems, restricting arbitrary runtime connections to external, unverified domains.
 
+--Report made by Yoav (Myself)--
+
